@@ -18,7 +18,7 @@ if [[ ! "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*:[A-Za-z0-9._-]+$ ]]; then
   exit 2
 fi
 
-tools=(git curl wget jq tmux zsh vim rg fd bat sudo)
+tools=(git curl wget jq just tmux zsh vim rg fd bat sudo)
 
 run() {
   docker run --rm --network none --entrypoint /usr/bin/env "$tag" "$@"
