@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Build the ahi-dev image.
-# Local use loads ahi-dev:local. Continuous integration loads
-# ahi-images-ci-dev:smoke and does not push. The push script publishes that
-# loaded image by digest after the smoke test.
+# Build one ahi image: dev, rust, or python (IMAGE_NAME, default dev).
+# Local use loads ahi-dev:local, ahi-dev-rust:local, or ahi-dev-python:local.
+# Continuous integration loads ahi-images-ci-<name>:smoke and does not push.
+# The push script publishes that loaded image by digest after the smoke test.
+# rust and python build FROM the base given by AHI_IMAGES_BASE_IMAGE: in CI
+# the ghcr.io/iancleary/ahi-dev manifest built in the same run, by digest;
+# locally ahi-dev:local by default.
 # The docker exporter's unpack option conflicts with rewrite-timestamp, so a
 # loaded image is produced by exporting a tarball and loading that tarball.
 # Directory entries created by COPY otherwise take the build clock as their
@@ -11,11 +14,48 @@ set -euo pipefail
 
 script_directory=$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 repository_root=$(cd -P -- "$script_directory/.." && pwd -P)
-dockerfile=$repository_root/images/dev/Containerfile
-build_context=$repository_root/images/dev
+
+known_image_name() {
+  case "$1" in
+    dev | rust | python) return 0 ;;
+  esac
+  return 1
+}
+
+image_name() {
+  local name=${IMAGE_NAME:-dev}
+  if ! known_image_name "$name"; then
+    printf 'IMAGE_NAME must be dev, rust, or python, got %s\n' "$name" >&2
+    exit 2
+  fi
+  printf '%s\n' "$name"
+}
+
+# The published repository name: ahi-dev, ahi-dev-rust, ahi-dev-python.
+image_repository_name() {
+  local name
+  name=$(image_name)
+  if [[ "$name" == dev ]]; then
+    printf 'ahi-dev\n'
+  else
+    printf 'ahi-dev-%s\n' "$name"
+  fi
+}
 
 continuous_integration_local_tag() {
-  printf 'ahi-images-ci-dev:smoke\n'
+  printf 'ahi-images-ci-%s:smoke\n' "$(image_name)"
+}
+
+base_image_reference() {
+  local base=${AHI_IMAGES_BASE_IMAGE:-}
+  if [[ -z "$base" ]]; then
+    base=ahi-dev:local
+  fi
+  if [[ ! "$base" =~ ^[A-Za-z0-9][A-Za-z0-9._:@/-]+$ ]]; then
+    printf 'base image reference is not usable: %s\n' "$base" >&2
+    exit 1
+  fi
+  printf '%s\n' "$base"
 }
 
 current_buildx_driver() {
@@ -29,10 +69,13 @@ current_buildx_driver() {
 }
 
 compose_image_build_command() {
-  local git_sha image_version image_tag
+  local name git_sha image_version image_tag base dockerfile build_context
   image_build_command=()
+  name=$(image_name)
+  dockerfile=$repository_root/images/$name/Containerfile
+  build_context=$repository_root/images/$name
   if [[ ! -f "$dockerfile" || ! -d "$build_context" ]]; then
-    printf 'missing Containerfile or build context\n' >&2
+    printf 'missing Containerfile or build context for %s\n' "$name" >&2
     exit 1
   fi
   if [[ -n "${AHI_IMAGES_GIT_SHA:-}" ]]; then
@@ -43,7 +86,7 @@ compose_image_build_command() {
     git_sha=unknown
   fi
   image_version=${AHI_IMAGES_IMAGE_VERSION:-local}
-  printf 'building ahi-dev version=%s revision=%s\n' "$image_version" "$git_sha" >&2
+  printf 'building %s version=%s revision=%s\n' "$(image_repository_name)" "$image_version" "$git_sha" >&2
 
   image_build_command=(docker buildx build)
   if [[ -n "${AHI_IMAGES_BUILD_FLAGS:-}" ]]; then
@@ -57,6 +100,14 @@ compose_image_build_command() {
     --build-arg "IMAGE_VERSION=${image_version}"
     --build-arg SOURCE_DATE_EPOCH=0
   )
+  if [[ "$name" != dev ]]; then
+    base=$(base_image_reference)
+    printf 'base image %s\n' "$base" >&2
+    image_build_command+=(--build-arg "BASE_IMAGE=${base}")
+    if [[ "$base" == *@sha256:* ]]; then
+      image_build_command+=(--build-arg "BASE_DIGEST=${base#*@}")
+    fi
+  fi
   if [[ -z "${AHI_IMAGES_NO_TAG:-}" ]]; then
     image_tag=${IMAGE_TAG:-}
     if [[ -z "$image_tag" ]]; then
@@ -107,7 +158,7 @@ load_rewritten_image() {
 
 require_buildx() {
   if ! docker buildx version >/dev/null 2>&1; then
-    printf 'docker buildx is required to build ahi-dev\n' >&2
+    printf 'docker buildx is required to build ahi images\n' >&2
     exit 1
   fi
 }
@@ -125,6 +176,13 @@ continuous_integration_build() {
       exit 1
       ;;
   esac
+  if [[ "$(image_name)" != dev ]]; then
+    : "${AHI_IMAGES_BASE_IMAGE:?AHI_IMAGES_BASE_IMAGE is required for a child image in CI}"
+    if [[ "$AHI_IMAGES_BASE_IMAGE" != */*@sha256:* ]]; then
+      printf 'CI builds a child image from a registry base by digest, got %s\n' "$AHI_IMAGES_BASE_IMAGE" >&2
+      exit 1
+    fi
+  fi
   local -a flags=(--platform "$PLATFORM" --pull --provenance=false --sbom=false)
   local local_tag
   if [[ "$NO_CACHE" == true ]]; then
@@ -146,7 +204,12 @@ continuous_integration_build() {
 
 local_build() {
   local tag=$1 platform=$2
-  local -a flags=(--pull --provenance=false --sbom=false)
+  local -a flags=(--provenance=false --sbom=false)
+  # --pull would try to fetch a local base tag such as ahi-dev:local from a
+  # registry. The base image build already pulled fedora.
+  if [[ "$(image_name)" == dev || "$(base_image_reference)" == */* ]]; then
+    flags+=(--pull)
+  fi
   if [[ -n "$platform" ]]; then
     flags+=(--platform "$platform")
   fi
@@ -166,6 +229,10 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   platform=
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --name)
+        export IMAGE_NAME=$2
+        shift 2
+        ;;
       --tag)
         tag=$2
         shift 2
@@ -175,13 +242,13 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
         shift 2
         ;;
       *)
-        printf 'usage: build_image.sh [--tag TAG] [--platform linux/amd64|linux/arm64]\n' >&2
+        printf 'usage: build_image.sh [--name dev|rust|python] [--tag TAG] [--platform linux/amd64|linux/arm64]\n' >&2
         exit 2
         ;;
     esac
   done
   if [[ -z "$tag" ]]; then
-    tag=ahi-dev:local
+    tag="$(image_repository_name):local"
   fi
   local_build "$tag" "$platform"
 fi

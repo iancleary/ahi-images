@@ -1,6 +1,8 @@
-# Local ahi-dev image builds. Docker Buildx must already be available.
+# Local ahi image builds: dev, rust, python. Docker Buildx must already be
+# available, with the default docker driver so a child image can build FROM
+# the ahi-dev:local tag in the engine's image store.
 # CI calls scripts/build_image.sh with PLATFORM set. That path loads
-# ahi-images-ci-dev:smoke and does not push.
+# ahi-images-ci-<name>:smoke and does not push.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -26,18 +28,35 @@ _require-docker:
       exit 1
     fi
 
-# Build ahi-dev:local (layer timestamps rewritten to the Unix epoch).
-build: _require-docker
+# Build one image as ahi-dev[-NAME]:local. rust and python build ahi-dev:local first.
+build name="dev": _require-docker
     #!/usr/bin/env bash
     set -euo pipefail
-    bash scripts/build_image.sh --tag ahi-dev:local
+    if [[ "{{name}}" != dev ]]; then
+      bash scripts/build_image.sh --name dev
+    fi
+    bash scripts/build_image.sh --name "{{name}}"
 
-# Build and smoke-test ahi-dev:local.
-smoke: build
+# Build and smoke-test one image.
+smoke name="dev": (build name)
     #!/usr/bin/env bash
     set -euo pipefail
-    bash scripts/smoke_test_image.sh ahi-dev:local
+    tag=ahi-dev:local
+    if [[ "{{name}}" != dev ]]; then
+      tag="ahi-dev-{{name}}:local"
+    fi
+    bash scripts/smoke_test_image.sh --name "{{name}}" "$tag"
 
-# Open a shell in the locally built image.
-shell: build
-    docker run --rm -it ahi-dev:local bash -l
+# Build and smoke-test all three images.
+smoke-all: (smoke "dev") (smoke "rust") (smoke "python")
+
+# Open a shell in a locally built image.
+shell name="dev": (build name)
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tag=ahi-dev:local
+    if [[ "{{name}}" != dev ]]; then
+      tag="ahi-dev-{{name}}:local"
+    fi
+    docker run --rm -it --volume "$PWD:/work" --workdir /work \
+      -e AHI_HOST_UID="$(id -u)" -e AHI_HOST_GID="$(id -g)" "$tag" bash -l

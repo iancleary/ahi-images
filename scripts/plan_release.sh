@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Decide whether to publish ahi-dev.
+# Decide whether to publish the ahi-dev image family (dev, rust, python).
 #
 # GitHub cron cannot express "every 3 days". The schedule runs daily. It
 # publishes a calver release when there is no ahi-dev-YYYY.MM.DD.NN tag
@@ -178,16 +178,16 @@ next_release() {
   printf '%s\n' "${today}.${sequence_text}"
 }
 
-build_dev=false
+build_images=false
 
 consider_file() {
   local path=$1
   case "$path" in
     .github/workflows/publish.yml | .github/workflows/build-single-image.yml)
-      build_dev=true
+      build_images=true
       ;;
     justfile | images/* | scripts/*)
-      build_dev=true
+      build_images=true
       ;;
   esac
 }
@@ -206,7 +206,7 @@ case "$event" in
       publish=release
       git_tag=ahi-dev-${image_version}
       no_cache=true
-      build_dev=true
+      build_images=true
       printf 'scheduled release %s\n' "$git_tag" >&2
     else
       publish=skip
@@ -219,7 +219,7 @@ case "$event" in
       edge)
         publish=edge
         image_version=edge
-        build_dev=true
+        build_images=true
         ;;
       release)
         mapfile -t release_lines < <(next_release)
@@ -227,7 +227,7 @@ case "$event" in
         publish=release
         git_tag=ahi-dev-${image_version}
         no_cache=true
-        build_dev=true
+        build_images=true
         printf 'manual release %s\n' "$git_tag" >&2
         ;;
       *)
@@ -237,7 +237,7 @@ case "$event" in
     ;;
   push)
     if [[ "$all_files" == true ]]; then
-      build_dev=true
+      build_images=true
     elif [[ -n "$files_path" ]]; then
       while IFS= read -r line || [[ -n "$line" ]]; do
         line=${line%$'\r'}
@@ -251,7 +251,7 @@ case "$event" in
 esac
 
 if [[ -z "$publish" ]]; then
-  if [[ "$build_dev" == true ]]; then
+  if [[ "$build_images" == true ]]; then
     publish=edge
     image_version=edge
   else
@@ -271,4 +271,4 @@ emit git_tag "$git_tag"
 emit short_sha "$short_sha"
 emit git_sha "$sha"
 emit no_cache "$no_cache"
-emit build_dev "$build_dev"
+emit build_images "$build_images"
