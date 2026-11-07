@@ -8,13 +8,16 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         bash \
         bash-completion \
         ca-certificates \
+        bat \
         curl \
+        fd-find \
         git \
         gnupg2 \
         jq \
         less \
         openssh-clients \
         procps-ng \
+        ripgrep \
         sudo \
         tmux \
         unzip \
