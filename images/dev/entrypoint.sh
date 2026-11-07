@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ahi-dev entrypoint. Runs the given command as dev, or an interactive login
-# shell when there is none.
+# ahi-dev entrypoint. Runs the given command as dev, or a zsh login shell
+# when there is none.
 #
 # When AHI_HOST_UID or AHI_HOST_GID is set, dev's uid and gid are changed to
 # match before the command runs, so files written to the bind mount come out
@@ -25,7 +25,7 @@ run_as_dev() {
     if [[ -t 2 ]]; then
       printf 'ahi-dev shell: user dev, workdir %s\n' "$PWD" >&2
     fi
-    set -- bash -l
+    set -- zsh -l
   fi
   if [[ "$(id -u)" -eq 0 ]]; then
     exec setpriv --reuid=dev --regid=dev --init-groups \
