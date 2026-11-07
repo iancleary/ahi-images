@@ -5,6 +5,7 @@
 #   smoke_test_image.sh [--name dev|rust|python] TAG
 #
 # Every image: the command runs as dev (not root), passwordless sudo works,
+# zsh starts with powerlevel10k and gitstatusd without the network,
 # the entrypoint passes argv and stdout through untouched, and
 # AHI_HOST_UID/AHI_HOST_GID remap dev and the files it writes.
 # rust: cargo, clippy, rustfmt at the recorded version, gcc present,
@@ -130,6 +131,21 @@ if [[ "$root_case" != "$uid" ]]; then
 fi
 if run_entry -e AHI_HOST_UID=abc "$tag" true >/dev/null 2>&1; then
   failed "a non-numeric AHI_HOST_UID must be refused"
+fi
+
+# zsh with powerlevel10k, offline: the theme loads, the wizard stays off,
+# gitstatusd is already present, and git status shows in a repository.
+p10k=$(run_entry "$tag" zsh -ilc 'typeset -f prompt_powerlevel9k_setup >/dev/null && (( ${+functions[p10k]} )) && ls ~/.cache/gitstatus/gitstatusd-* >/dev/null && printf ok' 2>/dev/null || true)
+if [[ "$p10k" != ok ]]; then
+  failed "zsh did not load powerlevel10k with a prefetched gitstatusd ('$p10k')"
+fi
+if run_entry "$tag" zsh -ilc 'true' 2>&1 | grep -qi 'wizard\|gitstatus.*download'; then
+  failed "zsh startup tried the wizard or a gitstatusd download"
+fi
+# gitstatusd needs job control, so this probe runs with a pseudo-tty.
+gitstatus=$(run_entry -t "$tag" zsh -ilc 'source ~/.local/share/powerlevel10k/gitstatus/gitstatus.plugin.zsh && cd /tmp && git init -q r && cd r && git -c user.name=a -c user.email=a@b commit -q --allow-empty -m x && gitstatus_start -s -1 -u -1 -d -1 -c -1 -m -1 P && gitstatus_query P && printf "result=%s" "$VCS_STATUS_RESULT"' 2>/dev/null | tr -d '\r' || true)
+if [[ "$gitstatus" != *result=ok-sync* ]]; then
+  failed "gitstatusd does not report a repository ('$gitstatus')"
 fi
 
 case "$name" in

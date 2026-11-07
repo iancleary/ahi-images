@@ -49,8 +49,14 @@ RUN useradd --create-home --shell /bin/bash --user-group dev \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
+# powerlevel10k for zsh, pinned by commit, with gitstatusd prefetched and
+# the lean preset as ~/.p10k.zsh. Lives under /home/dev so the uid remap
+# follows it. bash stays the login shell; ahi dev --shell zsh opens it.
+COPY --chown=dev:dev powerlevel10k.env install_powerlevel10k.sh zshrc /tmp/p10k/
+
 USER dev
 WORKDIR /home/dev
+RUN bash /tmp/p10k/install_powerlevel10k.sh && rm -rf /tmp/p10k
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash"]

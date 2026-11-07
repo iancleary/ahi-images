@@ -1,0 +1,16 @@
+# ahi-dev zsh configuration. powerlevel10k is pinned by images/dev/powerlevel10k.env.
+# Edit ~/.p10k.zsh to change the prompt, or run `p10k configure`.
+# The lean preset expects a Nerd Font in the terminal; without one some glyphs
+# render as boxes.
+POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+POWERLEVEL9K_INSTANT_PROMPT=off
+
+HISTFILE=~/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+setopt share_history hist_ignore_dups
+
+autoload -Uz compinit && compinit
+
+source ~/.local/share/powerlevel10k/powerlevel10k.zsh-theme
+[[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh

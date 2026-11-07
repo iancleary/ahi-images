@@ -14,7 +14,7 @@ it wants; the base stays small, and Node is deliberately absent.
 
 | Image | Path | Adds |
 |-------|------|------|
-| `ghcr.io/iancleary/ahi-dev` | `images/dev/` | Fedora, common CLI tools, non-root `dev` user with passwordless sudo, the remapping entrypoint |
+| `ghcr.io/iancleary/ahi-dev` | `images/dev/` | Fedora, common CLI tools, zsh with powerlevel10k, non-root `dev` user with passwordless sudo, the remapping entrypoint |
 | `ghcr.io/iancleary/ahi-dev-rust` | `images/rust/` | rustup with a pinned stable toolchain, clippy, rustfmt, gcc; `CARGO_TARGET_DIR=/work/target/dev` |
 | `ghcr.io/iancleary/ahi-dev-python` | `images/python/` | uv at a pinned version, one pinned CPython 3.14 in `/opt/python` |
 
@@ -34,12 +34,22 @@ with sha256 before use, so two contributors on `:latest` get the same shell.
 
 | File | Pins |
 |------|------|
+| `images/dev/powerlevel10k.env` | `P10K_COMMIT`, the powerlevel10k commit git checks out (content-addressed); its installer fetches gitstatusd and checks the sha256 it records |
 | `images/rust/rust.env` | `RUST_VERSION` (installed through rustup, which verifies components against the signed channel manifest) and `RUSTUP_VERSION` with the `rustup-init` sha256 per architecture |
 | `images/python/uv.env` | `UV_VERSION` with the release archive sha256 per architecture |
 | `images/python/python.env` | `PYTHON_VERSION` and the python-build-standalone archive sha256 per architecture; uv checks it before unpacking |
 
 Bump a pin by editing the `.env` file. The smoke test checks the installed version
 against the recorded one.
+
+### zsh and powerlevel10k
+
+The base image ships zsh with [powerlevel10k](https://github.com/romkatv/powerlevel10k)
+under `/home/dev/.local/share/powerlevel10k`, the lean preset as `~/.p10k.zsh`, and
+gitstatusd prefetched into `~/.cache/gitstatus` so the prompt works offline. The
+configuration wizard is disabled; edit `~/.p10k.zsh` or run `p10k configure`. The lean
+preset expects a Nerd Font in the terminal. bash remains the login shell;
+`ahi dev --shell zsh` opens zsh.
 
 ### Working directory and `target/`
 
@@ -128,7 +138,10 @@ ahi-images/
 ├── images/
 │   ├── dev/
 │   │   ├── Containerfile
-│   │   └── entrypoint.sh       # runs as dev; AHI_HOST_UID/GID remap
+│   │   ├── entrypoint.sh       # runs as dev; AHI_HOST_UID/GID remap
+│   │   ├── install_powerlevel10k.sh
+│   │   ├── powerlevel10k.env   # pinned commit
+│   │   └── zshrc
 │   ├── rust/
 │   │   ├── Containerfile       # FROM ${BASE_IMAGE}
 │   │   ├── install_rust.sh
