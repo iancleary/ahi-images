@@ -53,6 +53,12 @@ is where a Nerd Font is installed and selected; nothing in the image affects it.
 zsh is `dev`'s login shell and what the entrypoint opens when given no command;
 `ahi dev --shell bash` still works.
 
+The first prompt segment says where the shell is: `dev@ahi-dev-rust:2026.11.07.02 myrepo`.
+The image name and version come from `AHI_DEV_IMAGE` and `AHI_DEV_IMAGE_VERSION`, baked in
+at build time (`local` for a `just build`). The project name is `AHI_DEV_PROJECT`, which
+`ahi dev` sets to the name of the directory it mounts at `/work`; without it the segment
+ends at the version.
+
 ### Working directory and `target/`
 
 `ahi dev` bind-mounts the working directory read-write at `/work` and nothing else.
@@ -143,6 +149,7 @@ ahi-images/
 │   │   ├── entrypoint.sh       # runs as dev; AHI_HOST_UID/GID remap
 │   │   ├── install_powerlevel10k.sh
 │   │   ├── powerlevel10k.env   # pinned commit
+│   │   ├── p10k-ahi-dev.zsh    # user@image:version project segment
 │   │   └── zshrc
 │   ├── rust/
 │   │   ├── Containerfile       # FROM ${BASE_IMAGE}

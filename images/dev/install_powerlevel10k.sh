@@ -45,4 +45,11 @@ if ! compgen -G "$home/.cache/gitstatus/gitstatusd-*" >/dev/null; then
 fi
 
 cp "$theme_directory/config/p10k-lean.zsh" "$home/.p10k.zsh"
+# Put the ahi_dev segment (user@image:version project) first on line one.
+if ! grep -qE '^    dir +# current directory$' "$home/.p10k.zsh"; then
+  printf 'p10k-lean.zsh layout changed; the ahi_dev segment insertion needs updating\n' >&2
+  exit 1
+fi
+sed -i -E 's/^(    )dir( +# current directory)$/\1ahi_dev                 # user@image:version project\n\1dir\2/' "$home/.p10k.zsh"
+cat "$here/p10k-ahi-dev.zsh" >>"$home/.p10k.zsh"
 install -m 0644 "$here/zshrc" "$home/.zshrc"
