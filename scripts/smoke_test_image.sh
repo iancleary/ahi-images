@@ -133,6 +133,15 @@ if run_entry -e AHI_HOST_UID=abc "$tag" true >/dev/null 2>&1; then
   failed "a non-numeric AHI_HOST_UID must be refused"
 fi
 
+# zsh is the login shell and what the entrypoint opens without a command.
+if [[ "$(run_entry "$tag" getent passwd dev | cut -d: -f7)" != /bin/zsh ]]; then
+  failed "dev's login shell is not /bin/zsh"
+fi
+default_shell=$(printf 'printf "%%s" "$ZSH_VERSION"\n' | docker run --rm -i --network none "$tag" 2>/dev/null || true)
+if [[ ! "$default_shell" =~ ^5\. ]]; then
+  failed "the entrypoint without a command did not open zsh ('$default_shell')"
+fi
+
 # zsh with powerlevel10k, offline: the theme loads, the wizard stays off,
 # gitstatusd is already present, and git status shows in a repository.
 p10k=$(run_entry "$tag" zsh -ilc 'typeset -f prompt_powerlevel9k_setup >/dev/null && (( ${+functions[p10k]} )) && ls ~/.cache/gitstatus/gitstatusd-* >/dev/null && printf ok' 2>/dev/null || true)

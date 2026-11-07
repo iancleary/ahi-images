@@ -35,4 +35,4 @@ LABEL org.opencontainers.image.title="ahi-dev-rust" \
       org.opencontainers.image.created="1970-01-01T00:00:00Z"
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["bash"]
+CMD ["zsh"]

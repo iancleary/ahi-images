@@ -14,7 +14,7 @@ it wants; the base stays small, and Node is deliberately absent.
 
 | Image | Path | Adds |
 |-------|------|------|
-| `ghcr.io/iancleary/ahi-dev` | `images/dev/` | Fedora, common CLI tools, zsh with powerlevel10k, non-root `dev` user with passwordless sudo, the remapping entrypoint |
+| `ghcr.io/iancleary/ahi-dev` | `images/dev/` | Fedora, common CLI tools, zsh login shell with powerlevel10k, non-root `dev` user with passwordless sudo, the remapping entrypoint |
 | `ghcr.io/iancleary/ahi-dev-rust` | `images/rust/` | rustup with a pinned stable toolchain, clippy, rustfmt, gcc; `CARGO_TARGET_DIR=/work/target/dev` |
 | `ghcr.io/iancleary/ahi-dev-python` | `images/python/` | uv at a pinned version, one pinned CPython 3.14 in `/opt/python` |
 
@@ -48,8 +48,10 @@ The base image ships zsh with [powerlevel10k](https://github.com/romkatv/powerle
 under `/home/dev/.local/share/powerlevel10k`, the lean preset as `~/.p10k.zsh`, and
 gitstatusd prefetched into `~/.cache/gitstatus` so the prompt works offline. The
 configuration wizard is disabled; edit `~/.p10k.zsh` or run `p10k configure`. The lean
-preset expects a Nerd Font in the terminal. bash remains the login shell;
-`ahi dev --shell zsh` opens zsh.
+preset uses a few Nerd Font glyphs. Fonts are rendered by the host terminal, so that
+is where a Nerd Font is installed and selected; nothing in the image affects it.
+zsh is `dev`'s login shell and what the entrypoint opens when given no command;
+`ahi dev --shell bash` still works.
 
 ### Working directory and `target/`
 
