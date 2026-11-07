@@ -1,0 +1,37 @@
+# ahi-dev: opinionated, minimal dev shell image consumed by `ahi dev`
+# Published as ghcr.io/iancleary/ahi-dev (versioned tags + :latest)
+
+FROM fedora:latest
+
+# Common CLI tools; keep the list opinionated but small
+RUN dnf install -y --setopt=install_weak_deps=False \
+        bash \
+        bash-completion \
+        ca-certificates \
+        curl \
+        git \
+        gnupg2 \
+        jq \
+        less \
+        openssh-clients \
+        procps-ng \
+        sudo \
+        tmux \
+        unzip \
+        vim \
+        wget \
+        zsh \
+    && dnf clean all
+
+# Non-root user with passwordless sudo
+RUN useradd --create-home --shell /bin/bash --user-group dev \
+    && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev
+
+USER dev
+WORKDIR /home/dev
+
+COPY --chown=dev:dev entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bash"]
