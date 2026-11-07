@@ -1,12 +1,26 @@
 name: Build one ahi image
 
+# Builds one member of the ahi-dev family (dev, rust, or python) for amd64
+# and arm64 on native runners, smoke-tests each, pushes by digest, and joins
+# them into one manifest list. rust and python take base_image, the ahi-dev
+# manifest built earlier in the same run, by digest.
+
 on:
   workflow_call:
     inputs:
+      name:
+        description: dev, rust, or python. Selects images/<name>.
+        required: true
+        type: string
       image:
         description: ghcr.io image name without a tag
         required: true
         type: string
+      base_image:
+        description: For rust and python, ghcr.io/iancleary/ahi-dev@sha256:... built in this run. Empty for dev.
+        required: false
+        type: string
+        default: ""
       publish:
         description: edge or release
         required: true
@@ -34,7 +48,7 @@ permissions:
 
 jobs:
   build:
-    name: dev (${{ matrix.platform }})
+    name: ${{ inputs.name }} (${{ matrix.platform }})
     permissions:
       contents: read
       packages: write
@@ -71,6 +85,8 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
           IMAGE: ${{ inputs.image }}
+          IMAGE_NAME: ${{ inputs.name }}
+          AHI_IMAGES_BASE_IMAGE: ${{ inputs.base_image }}
           NO_CACHE: ${{ inputs.no_cache }}
           AHI_IMAGES_GIT_SHA: ${{ inputs.git_sha }}
           AHI_IMAGES_IMAGE_VERSION: ${{ inputs.image_version }}
@@ -80,7 +96,8 @@ jobs:
         if: steps.build.outputs.smoke == 'true'
         env:
           LOCAL_TAG: ${{ steps.build.outputs.local_tag }}
-        run: bash scripts/smoke_test_image.sh "$LOCAL_TAG"
+          IMAGE_NAME: ${{ inputs.name }}
+        run: bash scripts/smoke_test_image.sh --name "$IMAGE_NAME" "$LOCAL_TAG"
 
       - name: Push smoked image by digest
         id: push
@@ -88,6 +105,8 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
           IMAGE: ${{ inputs.image }}
+          IMAGE_NAME: ${{ inputs.name }}
+          AHI_IMAGES_BASE_IMAGE: ${{ inputs.base_image }}
           AHI_IMAGES_GIT_SHA: ${{ inputs.git_sha }}
           AHI_IMAGES_IMAGE_VERSION: ${{ inputs.image_version }}
         run: bash scripts/push_image_by_digest.sh
@@ -113,13 +132,13 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ahi-images-digest_dev_${{ matrix.suffix }}
+          name: ahi-images-digest_${{ inputs.name }}_${{ matrix.suffix }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
   merge:
-    name: dev manifest
+    name: ${{ inputs.name }} manifest
     needs: build
     permissions:
       contents: read
@@ -147,13 +166,13 @@ jobs:
       - name: Download amd64 digest
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: ahi-images-digest_dev_amd64
+          name: ahi-images-digest_${{ inputs.name }}_amd64
           path: ${{ runner.temp }}/digests/amd64
 
       - name: Download arm64 digest
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: ahi-images-digest_dev_arm64
+          name: ahi-images-digest_${{ inputs.name }}_arm64
           path: ${{ runner.temp }}/digests/arm64
 
       - name: Create manifest list

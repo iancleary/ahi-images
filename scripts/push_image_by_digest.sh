@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Push the image build_image.sh loaded, by digest, after the smoke test.
+# Push the image build_image.sh loaded (IMAGE_NAME: dev, rust, or python), by
+# digest, after the smoke test. A child image needs the same
+# AHI_IMAGES_BASE_IMAGE as the build so the second build is a cache hit.
 # The second build is the cached result of that load. Both exports rewrite
 # timestamps to the Unix epoch, and the pushed config digest has to match
 # the image that was smoked.

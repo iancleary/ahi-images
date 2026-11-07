@@ -1,5 +1,8 @@
-name: Publish ahi-dev
+name: Publish ahi-dev images
 
+# Publishes the ahi-dev family: ahi-dev, then ahi-dev-rust and ahi-dev-python
+# FROM the ahi-dev manifest built in the same run, by digest. The three move
+# together: one calver tag, and :latest moves only when every manifest built.
 # Push to main publishes :edge and :sha-<short> when a release input changed.
 # A GITHUB_TOKEN push does not start this workflow.
 # schedule runs daily at 15:45 UTC (08:45 America/Phoenix). The plan script
@@ -50,7 +53,7 @@ jobs:
       short_sha: ${{ steps.plan.outputs.short_sha }}
       git_sha: ${{ steps.plan.outputs.git_sha }}
       no_cache: ${{ steps.plan.outputs.no_cache }}
-      build_dev: ${{ steps.plan.outputs.build_dev }}
+      build_images: ${{ steps.plan.outputs.build_images }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,9 +90,9 @@ jobs:
             sed 's/^/- `/' "$RUNNER_TEMP/plan.env" | sed 's/$/`/'
           } >>"$GITHUB_STEP_SUMMARY"
 
-  build:
+  dev:
     needs: plan
-    if: needs.plan.outputs.build_dev == 'true'
+    if: needs.plan.outputs.build_images == 'true'
     permissions:
       contents: read
       packages: write
@@ -97,6 +100,7 @@ jobs:
       attestations: write
     uses: ./.github/workflows/build-single-image.yml
     with:
+      name: dev
       image: ghcr.io/iancleary/ahi-dev
       publish: ${{ needs.plan.outputs.publish }}
       image_version: ${{ needs.plan.outputs.image_version }}
@@ -104,18 +108,58 @@ jobs:
       git_sha: ${{ needs.plan.outputs.git_sha }}
       no_cache: ${{ needs.plan.outputs.no_cache == 'true' }}
 
+  rust:
+    needs: [plan, dev]
+    if: needs.plan.outputs.build_images == 'true' && needs.dev.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      name: rust
+      image: ghcr.io/iancleary/ahi-dev-rust
+      base_image: ghcr.io/iancleary/ahi-dev@${{ needs.dev.outputs.digest }}
+      publish: ${{ needs.plan.outputs.publish }}
+      image_version: ${{ needs.plan.outputs.image_version }}
+      short_sha: ${{ needs.plan.outputs.short_sha }}
+      git_sha: ${{ needs.plan.outputs.git_sha }}
+      no_cache: ${{ needs.plan.outputs.no_cache == 'true' }}
+
+  python:
+    needs: [plan, dev]
+    if: needs.plan.outputs.build_images == 'true' && needs.dev.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-single-image.yml
+    with:
+      name: python
+      image: ghcr.io/iancleary/ahi-dev-python
+      base_image: ghcr.io/iancleary/ahi-dev@${{ needs.dev.outputs.digest }}
+      publish: ${{ needs.plan.outputs.publish }}
+      image_version: ${{ needs.plan.outputs.image_version }}
+      short_sha: ${{ needs.plan.outputs.short_sha }}
+      git_sha: ${{ needs.plan.outputs.git_sha }}
+      no_cache: ${{ needs.plan.outputs.no_cache == 'true' }}
+
   release:
-    needs: [plan, build]
+    needs: [plan, dev, rust, python]
     if: |
       always() &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.publish == 'release' &&
-      needs.build.result == 'success'
+      needs.dev.result == 'success' &&
+      needs.rust.result == 'success' &&
+      needs.python.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # contents: write creates the calver git tag and GitHub Release.
-    # packages: write moves the calver tag and :latest. This job does not
-    # run when the manifest failed, so those tags move together.
+    # packages: write moves the calver tags and :latest. This job does not
+    # run when any manifest failed, so the three images move together.
     permissions:
       contents: write
       packages: write
@@ -136,22 +180,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag the image and create the calver release
+      - name: Tag the images and create the calver release
         env:
           GIT_TAG: ${{ needs.plan.outputs.git_tag }}
           IMAGE_VERSION: ${{ needs.plan.outputs.image_version }}
           GH_TOKEN: ${{ github.token }}
-          DIGEST_AHI_DEV: ${{ needs.build.outputs.digest }}
+          DIGEST_AHI_DEV: ${{ needs.dev.outputs.digest }}
+          DIGEST_AHI_DEV_RUST: ${{ needs.rust.outputs.digest }}
+          DIGEST_AHI_DEV_PYTHON: ${{ needs.python.outputs.digest }}
         run: bash scripts/publish_release.sh
 
   notify:
-    needs: [plan, build, release]
+    needs: [plan, dev, rust, python, release]
     if: |
       always() &&
       github.event_name == 'schedule' &&
       (
         needs.plan.result == 'failure' ||
-        needs.build.result == 'failure' ||
+        needs.dev.result == 'failure' ||
+        needs.rust.result == 'failure' ||
+        needs.python.result == 'failure' ||
         needs.release.result == 'failure'
       )
     runs-on: ubuntu-24.04
@@ -170,7 +218,7 @@ jobs:
           body=$(printf '%s\n' \
             "The scheduled ahi-dev publish failed." \
             "Run: ${url}" \
-            "A failed manifest does not move :latest or the calver tag.")
+            "A failed manifest does not move :latest or the calver tags of any image.")
           number=$(gh issue list --repo "$GH_REPO" --state open --limit 50 --json number,title \
             --jq '[.[] | select(.title == "ahi-dev scheduled publish failed") | .number][0] // empty')
           if [[ -n "$number" ]]; then

@@ -11,7 +11,9 @@ LABEL org.opencontainers.image.title="ahi-dev" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.created="1970-01-01T00:00:00Z"
 
-# Common CLI tools; keep the list opinionated but small
+# Common CLI tools; keep the list opinionated but small. Node is deliberately
+# absent. shadow-utils (usermod, groupmod) and util-linux (setpriv) are
+# what the entrypoint uses to remap the dev user to the host uid and gid.
 RUN dnf install -y --setopt=install_weak_deps=False \
         bash \
         bash-completion \
@@ -27,23 +29,28 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         openssh-clients \
         procps-ng \
         ripgrep \
+        shadow-utils \
         sudo \
         tmux \
         unzip \
+        util-linux \
         vim \
         wget \
         zsh \
     && dnf clean all
 
-# Non-root user with passwordless sudo
+# Non-root user with passwordless sudo. /work is where ahi dev mounts the
+# working directory; it exists and is writable even without a mount.
 RUN useradd --create-home --shell /bin/bash --user-group dev \
-    && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev
+    && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev \
+    && mkdir /work \
+    && chown dev:dev /work
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/entrypoint.sh
 
 USER dev
 WORKDIR /home/dev
-
-COPY --chown=dev:dev entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash"]
