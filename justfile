@@ -1,29 +1,43 @@
-# Build and publish the ahi-dev image
-# Usage: just build | just push | just run | just shell
+# Local ahi-dev image builds. Docker Buildx must already be available.
+# CI calls scripts/build_image.sh with PLATFORM set. That path loads
+# ahi-images-ci-dev:smoke and does not push.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-image := "ghcr.io/iancleary/ahi-dev"
-tag := `git describe --tags --always --dirty`
-full := image + ":" + tag
-
-# default recipe: show available recipes
+# List recipes.
 default:
     @just --list
 
-# build the dev image, tagged :latest and the current git describe
-build:
-    docker build -f images/dev/Containerfile -t {{ full }} -t {{ image }}:latest images/dev
+# Stop when the Docker CLI is missing or the daemon is not already running.
+[private]
+_require-docker:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v docker >/dev/null 2>&1; then
+      printf 'docker is not on PATH. Start Docker yourself, then re-run.\n' >&2
+      exit 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+      printf 'Docker is not running. Start it yourself, then re-run.\n' >&2
+      exit 1
+    fi
+    if ! docker buildx version >/dev/null 2>&1; then
+      printf 'docker buildx is required. Install it, then re-run.\n' >&2
+      exit 1
+    fi
 
-# push both tags (requires `docker login ghcr.io`)
-push: build
-    docker push {{ full }}
-    docker push {{ image }}:latest
+# Build ahi-dev:local (layer timestamps rewritten to the Unix epoch).
+build: _require-docker
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/build_image.sh --tag ahi-dev:local
 
-# run the image locally
-run *args: build
-    docker run --rm -it {{ image }}:latest {{ args }}
+# Build and smoke-test ahi-dev:local.
+smoke: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/smoke_test_image.sh ahi-dev:local
 
-# open a shell in the image
-shell:
-    @just run bash -l
+# Open a shell in the locally built image.
+shell: build
+    docker run --rm -it ahi-dev:local bash -l
