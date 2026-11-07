@@ -16,7 +16,9 @@ RUN bash /tmp/python/install_python.sh && rm -rf /tmp/python
 ENV UV_PYTHON_INSTALL_DIR=/opt/python \
     UV_PYTHON_BIN_DIR=/opt/python/bin \
     PATH=/opt/python/bin:/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    AHI_DEV_REMAP_PATHS=/opt/python
+    AHI_DEV_REMAP_PATHS=/opt/python \
+    AHI_DEV_IMAGE=ahi-dev-python \
+    AHI_DEV_IMAGE_VERSION=${IMAGE_VERSION}
 
 USER dev
 WORKDIR /home/dev

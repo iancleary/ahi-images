@@ -19,7 +19,9 @@ USER dev
 ENV RUSTUP_HOME=/home/dev/.rustup \
     CARGO_HOME=/home/dev/.cargo \
     PATH=/home/dev/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    CARGO_TARGET_DIR=/work/target/dev
+    CARGO_TARGET_DIR=/work/target/dev \
+    AHI_DEV_IMAGE=ahi-dev-rust \
+    AHI_DEV_IMAGE_VERSION=${IMAGE_VERSION}
 
 RUN bash /tmp/rust/install_rust.sh && rm -rf /tmp/rust
 

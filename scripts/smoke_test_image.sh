@@ -151,6 +151,17 @@ fi
 if run_entry "$tag" zsh -ilc 'true' 2>&1 | grep -qi 'wizard\|gitstatus.*download'; then
   failed "zsh startup tried the wizard or a gitstatusd download"
 fi
+# The prompt's ahi_dev segment is defined and first on line one, and the
+# image identifies itself through the environment.
+segment=$(run_entry -e AHI_DEV_PROJECT=demo "$tag" zsh -ilc 'typeset -f prompt_ahi_dev >/dev/null && [[ ${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[1]} == ahi_dev ]] && printf "%s %s %s" "$AHI_DEV_IMAGE" "${AHI_DEV_IMAGE_VERSION:+set}" "$AHI_DEV_PROJECT"' 2>/dev/null || true)
+expected_image=ahi-dev
+if [[ "$name" != dev ]]; then
+  expected_image="ahi-dev-$name"
+fi
+if [[ "$segment" != "$expected_image set demo" ]]; then
+  failed "the ahi_dev prompt segment is not wired ('$segment')"
+fi
+
 # gitstatusd needs job control, so this probe runs with a pseudo-tty.
 gitstatus=$(run_entry -t "$tag" zsh -ilc 'source ~/.local/share/powerlevel10k/gitstatus/gitstatus.plugin.zsh && cd /tmp && git init -q r && cd r && git -c user.name=a -c user.email=a@b commit -q --allow-empty -m x && gitstatus_start -s -1 -u -1 -d -1 -c -1 -m -1 P && gitstatus_query P && printf "result=%s" "$VCS_STATUS_RESULT"' 2>/dev/null | tr -d '\r' || true)
 if [[ "$gitstatus" != *result=ok-sync* ]]; then

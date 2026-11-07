@@ -59,4 +59,4 @@ shell name="dev": (build name)
       tag="ahi-dev-{{name}}:local"
     fi
     docker run --rm -it --volume "$PWD:/work" --workdir /work \
-      -e AHI_HOST_UID="$(id -u)" -e AHI_HOST_GID="$(id -g)" "$tag" zsh -l
+      -e AHI_HOST_UID="$(id -u)" -e AHI_HOST_GID="$(id -g)" -e AHI_DEV_PROJECT="$(basename "$PWD")" "$tag" zsh -l
